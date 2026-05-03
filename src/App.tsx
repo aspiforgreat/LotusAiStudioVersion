@@ -291,17 +291,17 @@ export default function App() {
         </svg>
       </div>
 
-      <header className="absolute top-0 left-0 w-full p-10 flex justify-between items-start z-20">
-        <div>
-          <h1 className="text-[10px] font-medium tracking-[0.5em] text-slate-600 uppercase">Living with Intent</h1>
-          <div className="text-3xl font-light tracking-tight mt-1 flex items-center gap-4">
+      <header className="absolute top-0 left-0 w-full p-6 md:p-10 flex flex-col md:flex-row justify-between items-center md:items-start z-20 gap-6 md:gap-0">
+        <div className="flex flex-col items-center md:items-start">
+          <h1 className="text-[9px] md:text-[10px] font-medium tracking-[0.4em] md:tracking-[0.5em] text-slate-600 uppercase">Living with Intent</h1>
+          <div className="text-xl md:text-3xl font-light tracking-tight mt-1 flex items-center gap-3 md:gap-4">
             <span>Lotus Habit <span className="italic font-serif opacity-40">Visualizer</span></span>
             <button 
               onClick={() => fileInputRef.current?.click()}
               className="bg-white/5 hover:bg-white/10 p-2 rounded-full border border-white/5 transition-all group relative"
               title="Upload data.json"
             >
-              <Upload size={16} className="text-slate-400 group-hover:text-emerald-400" />
+              <Upload size={14} className="md:w-4 md:h-4 text-slate-400 group-hover:text-emerald-400" />
               <input 
                 type="file" 
                 ref={fileInputRef} 
@@ -313,28 +313,28 @@ export default function App() {
           </div>
         </div>
         
-        <div className="flex flex-col items-end gap-10">
-          <div className="flex gap-2 bg-white/5 backdrop-blur-3xl p-1 rounded-full border border-white/5 shadow-2xl">
+        <div className="flex flex-col items-center md:items-end gap-6 md:gap-10">
+          <div className="flex gap-1 md:gap-2 bg-white/5 backdrop-blur-3xl p-1 rounded-full border border-white/5 shadow-2xl">
             <RangeButton active={range === 'month'} onClick={() => setRange('month')} label="Month" />
             <RangeButton active={range === 'year'} onClick={() => setRange('year')} label="Year" />
             <RangeButton active={range === 'fiftyYears'} onClick={() => setRange('fiftyYears')} label="50 Years" />
           </div>
 
           {range !== 'fiftyYears' && (
-            <div className="flex items-center gap-6 text-[11px] tracking-[0.3em] font-light text-slate-400 uppercase">
-              <button onClick={() => changeDate(-1)} className="hover:text-white transition-all p-2 bg-white/5 rounded-full"><ChevronLeft size={16}/></button>
+            <div className="flex items-center gap-4 md:gap-6 text-[9px] md:text-[11px] tracking-[0.2em] md:tracking-[0.3em] font-light text-slate-400 uppercase">
+              <button onClick={() => changeDate(-1)} className="hover:text-white transition-all p-1.5 md:p-2 bg-white/5 rounded-full"><ChevronLeft size={14} className="md:w-4 md:h-4"/></button>
               <AnimatePresence mode="wait">
                 <motion.span 
                   key={currentLabel}
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -5 }}
-                  className="min-w-[140px] text-center"
+                  className="min-w-[100px] md:min-w-[140px] text-center"
                 >
                   {currentLabel}
                 </motion.span>
               </AnimatePresence>
-              <button onClick={() => changeDate(1)} className="hover:text-white transition-all p-2 bg-white/5 rounded-full"><ChevronRight size={16}/></button>
+              <button onClick={() => changeDate(1)} className="hover:text-white transition-all p-1.5 md:p-2 bg-white/5 rounded-full"><ChevronRight size={14} className="md:w-4 md:h-4"/></button>
             </div>
           )}
         </div>
@@ -527,8 +527,8 @@ export default function App() {
         </g>
       </svg>
 
-      <footer className="absolute bottom-0 left-0 w-full p-10 flex justify-center items-center z-20 text-slate-200">
-        <div className="flex flex-wrap justify-center gap-x-12 gap-y-4 max-w-4xl px-12">
+      <footer className="absolute bottom-0 left-0 w-full p-6 md:p-10 flex justify-center items-center z-20 text-slate-200">
+        <div className="flex flex-wrap justify-center gap-x-6 md:gap-x-12 gap-y-3 max-w-4xl px-6 md:px-12">
           {habits.map(h => (
             <div 
               key={h.id} 
@@ -537,10 +537,10 @@ export default function App() {
               onMouseLeave={() => setHoveredHabit(null)}
             >
               <div 
-                className="w-1.5 h-1.5 rounded-full transition-transform duration-300 group-hover:scale-125" 
+                className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full transition-transform duration-300 group-hover:scale-125" 
                 style={{ backgroundColor: h.color, boxShadow: hoveredHabit === h.id ? `0 0 12px ${h.color}` : 'none' }}
               ></div>
-              <span className="text-[12px] flex items-center gap-2 whitespace-nowrap text-slate-200 font-light tracking-[0.05em]">
+              <span className="text-[10px] md:text-[12px] flex items-center gap-1.5 md:gap-2 whitespace-nowrap text-slate-200 font-light tracking-[0.05em]">
                 <span className="opacity-80 scale-90">{h.emoji}</span>
                 <span className="opacity-60 group-hover:opacity-100 transition-opacity">{h.name}</span>
               </span>
@@ -556,11 +556,11 @@ function RangeButton({ active, onClick, label }: { active: boolean; onClick: () 
   return (
     <button
       onClick={onClick}
-      className={`px-6 py-2 rounded-full text-sm font-medium tracking-wide transition-all duration-300 ${
+      className={`px-4 md:px-6 py-1.5 md:py-2 rounded-full text-sm font-medium tracking-wide transition-all duration-300 ${
         active ? 'bg-white/10 text-white shadow-[0_0_20px_rgba(255,255,255,0.05)]' : 'text-slate-400 hover:text-white'
       }`}
     >
-      <span className="uppercase text-[10px] tracking-widest">{label}</span>
+      <span className="uppercase text-[8px] md:text-[10px] tracking-widest">{label}</span>
     </button>
   );
 }
