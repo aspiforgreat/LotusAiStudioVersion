@@ -5,8 +5,8 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Calendar, Layers, Hourglass, Info, ChevronLeft, ChevronRight, Upload, Sparkles } from 'lucide-react';
-import { HABIT_DATA as INITIAL_HABIT_DATA } from './data';
+import { Calendar, Layers, Hourglass, Info, ChevronLeft, ChevronRight, Upload, Sparkles, RotateCcw } from 'lucide-react';
+import { HABIT_DATA as INITIAL_HABIT_DATA, mapRawData, SAMPLE_DATA } from './data';
 import { TimeRange, Habit, Entry, HabitData } from './types';
 
 const LIFESPAN_YEARS = 50;
@@ -21,6 +21,57 @@ const CENTRAL_HUD_CONFIG = {
   corePointRadius: 0.08, // The tiny white core dot in the absolute center
   corePointOpacity: 0.6  // How bright the tiny core dot is
 };
+
+function WelcomeScreen({ onUpload, onLoadSample }: { onUpload: () => void; onLoadSample: () => void }) {
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[50] bg-black flex flex-col items-center justify-center p-6 text-center"
+    >
+      <div className="max-w-md w-full space-y-8">
+        <div className="space-y-4">
+          <motion.div 
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 1, ease: "easeOut" }}
+            className="w-24 h-24 bg-white/5 rounded-full mx-auto flex items-center justify-center border border-white/10"
+          >
+            <Sparkles className="text-emerald-400 w-10 h-10" />
+          </motion.div>
+          <h2 className="text-3xl font-light tracking-tight text-white">Begin your <span className="italic font-serif opacity-60">visual journey</span></h2>
+          <p className="text-slate-400 font-light leading-relaxed">
+            Lotus Habit Visualizer transforms your atomic habit data into a living, breathing garden of growth.
+          </p>
+        </div>
+
+        <div className="grid gap-4 pt-4">
+          <button 
+            onClick={onUpload}
+            className="group relative flex items-center justify-center gap-3 bg-white text-black px-8 py-4 rounded-2xl font-medium transition-all hover:bg-emerald-50 active:scale-95 overflow-hidden"
+          >
+            <Upload size={20} />
+            <span>Upload your data.json</span>
+            <div className="absolute inset-0 bg-emerald-400/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500"></div>
+          </button>
+
+          <button 
+            onClick={onLoadSample}
+            className="flex items-center justify-center gap-3 bg-white/5 hover:bg-white/10 text-white px-8 py-4 rounded-2xl font-light border border-white/5 transition-all active:scale-95"
+          >
+            <Layers size={18} className="opacity-60" />
+            <span>Explore with Sample Data</span>
+          </button>
+        </div>
+
+        <p className="text-[10px] uppercase tracking-[0.3em] text-slate-600">
+          Your data stays in your browser
+        </p>
+      </div>
+    </motion.div>
+  );
+}
 
 function LoadingLotus() {
   return (
@@ -103,6 +154,20 @@ export default function App() {
     };
     window.addEventListener('resize', updateSize);
     updateSize();
+
+    // Load from local storage if exists
+    const storedData = localStorage.getItem('lotus_habit_data');
+    if (storedData) {
+      try {
+        const parsed = JSON.parse(storedData);
+        if (parsed.habits && parsed.entries) {
+          setHabitData(mapRawData(parsed));
+        }
+      } catch (err) {
+        console.error("Failed to load local storage data", err);
+      }
+    }
+
     return () => window.removeEventListener('resize', updateSize);
   }, []);
 
@@ -112,48 +177,63 @@ export default function App() {
 
     setIsLoading(true);
     
-    // Artificial delay to show the lotus loading animation as requested
-    await new Promise(resolve => setTimeout(resolve, 2500));
+    // Artificial delay for the lotus animation
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const raw = JSON.parse(event.target?.result as string);
+        
+        // Basic validation
+        if (!raw.habits || !raw.entries) {
+          throw new Error("Invalid format: missing habits or entries");
+        }
 
-      const response = await fetch('/api/upload-data', {
-        method: 'POST',
-        body: formData
-      });
+        const mapped = mapRawData(raw);
 
-      if (response.ok) {
-        // Reload data from the newly uploaded file
-        // For the current session, we can just parse it and update state
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          try {
-            const raw = JSON.parse(event.target?.result as string);
-            // We need to apply the same mapping logic as in data.ts
-            // But since we can't easily import the complex mapping from data.ts here without exposing it,
-            // we'll assume the server write succeeds and just reload or update state manually.
-            
-            // To be precise, let's just trigger a full reload since data.json is now updated on server
-            window.location.reload();
-          } catch (err) {
-            console.error("Failed to parse uploaded JSON", err);
-            setIsLoading(false);
-          }
-        };
-        reader.readAsText(file);
-      } else {
-        alert("Upload failed. Make sure the file is a valid JSON.");
+        // Save to local storage (save the raw data or mapped data? preferably raw so we can re-map if we change logic)
+        localStorage.setItem('lotus_habit_data', JSON.stringify(raw));
+        
+        // Update state
+        setHabitData(mapped);
+        setIsLoading(false);
+      } catch (err) {
+        alert("Parsing failed: " + (err instanceof Error ? err.message : "Invalid JSON"));
         setIsLoading(false);
       }
-    } catch (err) {
-      console.error("Upload error", err);
+    };
+    reader.onerror = () => {
+      alert("Failed to read file");
       setIsLoading(false);
+    };
+    reader.readAsText(file);
+  };
+
+  const resetData = () => {
+    if (confirm("Reset to default visualization? This will clear your uploaded data.")) {
+      localStorage.removeItem('lotus_habit_data');
+      setHabitData(INITIAL_HABIT_DATA);
     }
   };
 
+  const loadSampleData = () => {
+    setIsLoading(true);
+    setTimeout(() => {
+      setHabitData(SAMPLE_DATA);
+      setIsLoading(false);
+    }, 1500);
+  };
+
   const habits = habitData.habits;
+
+  useEffect(() => {
+    if (habitData.entries.length > 0) {
+      const dates = habitData.entries.map(e => new Date(e.date).getTime());
+      const latestDate = new Date(Math.max(...dates));
+      setSelectedDate(latestDate);
+    }
+  }, [habitData]);
 
   const aggregatedData = useMemo(() => {
     return habits.map(habit => {
@@ -222,7 +302,9 @@ export default function App() {
   const centerY = dimensions.height / 2 - 40;
 
   const activeStreak = 14; 
-  const totalBloom = (aggregatedData.reduce((acc, h) => acc + h.completionRate, 0) / aggregatedData.length).toFixed(1);
+  const totalBloom = (aggregatedData.length > 0 
+    ? aggregatedData.reduce((acc, h) => acc + h.completionRate, 0) / aggregatedData.length 
+    : 0).toFixed(1);
 
   const changeDate = (offset: number) => {
     const d = new Date(selectedDate);
@@ -257,6 +339,12 @@ export default function App() {
     <div className="fixed inset-0 overflow-hidden font-sans select-none bg-[#020202] text-slate-200">
       <AnimatePresence>
         {isLoading && <LoadingLotus />}
+        {!isLoading && habits.length === 0 && (
+          <WelcomeScreen 
+            onUpload={() => fileInputRef.current?.click()} 
+            onLoadSample={loadSampleData} 
+          />
+        )}
       </AnimatePresence>
 
       <div className="absolute inset-0 pointer-events-none">
@@ -296,20 +384,32 @@ export default function App() {
           <h1 className="text-[9px] md:text-[10px] font-medium tracking-[0.4em] md:tracking-[0.5em] text-slate-600 uppercase">Living with Intent</h1>
           <div className="text-xl md:text-3xl font-light tracking-tight mt-1 flex items-center gap-3 md:gap-4">
             <span>Lotus Habit <span className="italic font-serif opacity-40">Visualizer</span></span>
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              className="bg-white/5 hover:bg-white/10 p-2 rounded-full border border-white/5 transition-all group relative"
-              title="Upload data.json"
-            >
-              <Upload size={14} className="md:w-4 md:h-4 text-slate-400 group-hover:text-emerald-400" />
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileUpload} 
-                accept=".json" 
-                className="hidden" 
-              />
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="bg-white/5 hover:bg-white/10 p-2 rounded-full border border-white/5 transition-all group relative"
+                title="Upload own data.json"
+              >
+                <Upload size={14} className="md:w-4 md:h-4 text-slate-400 group-hover:text-emerald-400" />
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileUpload} 
+                  accept=".json" 
+                  className="hidden" 
+                />
+              </button>
+
+              {localStorage.getItem('lotus_habit_data') && (
+                <button 
+                  onClick={resetData}
+                  className="bg-white/5 hover:bg-white/10 p-2 rounded-full border border-white/5 transition-all group"
+                  title="Reset to default"
+                >
+                  <RotateCcw size={14} className="md:w-4 md:h-4 text-slate-400 group-hover:text-red-400" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
         

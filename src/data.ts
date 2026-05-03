@@ -13,38 +13,43 @@ const colorMap: Record<string, string> = {
   "purple": "#a78bfa",
 };
 
-// Map the raw data to the application's types
-const habits: Habit[] = rawData.habits.map((h: any) => {
-  // Extract emoji from name if present at the start
-  // This regex handles flag emojis (Regional Indicators), presentation emojis, and emojis with modifiers
-  const emojiMatch = h.name.match(/^(\p{Regional_Indicator}{2}|\p{Emoji_Presentation}|\p{Emoji}\uFE0F)/u);
-  let emoji = emojiMatch ? emojiMatch[0] : '';
-  
-  // If no match found but first "point" is an emoji according to broad definition
-  if (!emoji && h.name.length > 0) {
-    // Check for standard emojis that might not be caught by Emoji_Presentation
-    const broadMatch = h.name.match(/^(\p{Emoji})/u);
-    if (broadMatch) {
-      emoji = broadMatch[0];
+// Helper to map raw data to app types
+export const mapRawData = (raw: any): HabitData => {
+  const habits: Habit[] = (raw.habits || []).map((h: any) => {
+    // Extract emoji from name if present at the start
+    const emojiMatch = h.name.match(/^(\p{Regional_Indicator}{2}|\p{Emoji_Presentation}|\p{Emoji}\uFE0F)/u);
+    let emoji = emojiMatch ? emojiMatch[0] : '';
+    
+    if (!emoji && h.name.length > 0) {
+      const broadMatch = h.name.match(/^(\p{Emoji})/u);
+      if (broadMatch) {
+        emoji = broadMatch[0];
+      }
     }
-  }
 
-  const cleanName = emoji ? h.name.replace(emoji, '').trim() : h.name;
+    const cleanName = emoji ? h.name.replace(emoji, '').trim() : h.name;
 
-  return {
-    ...h,
-    name: cleanName,
-    emoji: emoji || '✨',
-    color: colorMap[h.color] || h.color // Use hex code from map or fallback to original
-  };
-});
+    return {
+      ...h,
+      name: cleanName,
+      emoji: emoji || '✨',
+      color: colorMap[h.color] || h.color
+    };
+  });
 
-const entries: Entry[] = rawData.entries.map((e: any) => ({
-  ...e,
-  habitId: Number(e.habitId)
-}));
+  const entries: Entry[] = (raw.entries || []).map((e: any) => ({
+    ...e,
+    habitId: Number(e.habitId)
+  }));
 
-export const HABIT_DATA: HabitData = {
-  habits,
-  entries
+  return { habits, entries };
 };
+
+export const SAMPLE_DATA: HabitData = mapRawData(rawData);
+
+export const EMPTY_DATA: HabitData = {
+  habits: [],
+  entries: []
+};
+
+export const HABIT_DATA: HabitData = EMPTY_DATA;
