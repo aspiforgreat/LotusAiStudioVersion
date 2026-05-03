@@ -278,62 +278,36 @@ export default function App() {
   const aggregatedData = useMemo(() => {
     return habits.map(habit => {
       const habitEntries = habitData.entries.filter(e => Number(e.habitId) === Number(habit.id) && e.value > 0);
-      let dots: { x: number; y: number; id: string }[] = [];
+      let shellCount = 0;
       let completionRate = 0;
 
-      // Calculate target capacity based on frequency
-      const getCapacity = (mode: TimeRange) => {
-        const freq = habit.frequency;
-        const num = habit.frequencyNumber || 1;
-        
-        if (mode === 'month') {
-          if (freq === 'weekly') return num * 4.33;
-          if (freq === 'monthly') return num;
-          return 31; // daily or null
-        }
-        if (mode === 'year') {
-          if (freq === 'weekly') return num * 52;
-          if (freq === 'monthly') return num * 12;
-          return 365;
-        }
-        if (mode === 'fiftyYears') {
-          if (freq === 'weekly') return num * 52 * 50;
-          if (freq === 'monthly') return num * 12 * 50;
-          return 365 * 50;
-        }
-        return 1000;
-      };
-
+      // Grouping logic for fractal shells
       if (range === 'month') {
         const targetMonth = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`;
         const monthEntries = habitEntries.filter(e => e.date.startsWith(targetMonth));
-        
-        dots = monthEntries.map(e => {
-          const seed = e.date.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) + e.id;
-          return { x: ((seed * 123.456) % 1), y: ((seed * 789.012) % 1), id: `e-${e.id}` };
-        });
-        completionRate = Math.min(100, (monthEntries.length / getCapacity('month')) * 100);
+        shellCount = monthEntries.length;
+        completionRate = Math.min(100, (shellCount / 31) * 100);
       } 
       else if (range === 'year') {
         const targetYear = selectedDate.getFullYear().toString();
         const yearEntries = habitEntries.filter(e => e.date.startsWith(targetYear));
-        
-        dots = yearEntries.map(e => {
-          const seed = e.date.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) + e.id;
-          return { x: ((seed * 123.456) % 1), y: ((seed * 789.012) % 1), id: `e-${e.id}` };
-        });
-        completionRate = Math.min(100, (yearEntries.length / getCapacity('year')) * 100);
+        // Group by week
+        const activeWeeks = new Set(yearEntries.map(e => {
+          const d = new Date(e.date);
+          const onejan = new Date(d.getFullYear(), 0, 1);
+          return Math.ceil((((d.getTime() - onejan.getTime()) / 86400000) + onejan.getDay() + 1) / 7);
+        }));
+        shellCount = activeWeeks.size;
+        completionRate = Math.min(100, (shellCount / 52) * 100);
       }
       else {
-        // Fifty Years
-        dots = habitEntries.map(e => {
-          const seed = e.date.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) + e.id;
-          return { x: ((seed * 123.456) % 1), y: ((seed * 789.012) % 1), id: `e-${e.id}` };
-        });
-        completionRate = Math.min(100, (habitEntries.length / getCapacity('fiftyYears')) * 100);
+        // Fifty Years - Group by year (Mastery Tiers)
+        const activeYears = new Set(habitEntries.map(e => e.date.split('-')[0]));
+        shellCount = activeYears.size;
+        completionRate = Math.min(100, (shellCount / LIFESPAN_YEARS) * 100);
       }
 
-      return { ...habit, dots, completionRate };
+      return { ...habit, shellCount, completionRate };
     });
   }, [range, habits, selectedDate]);
 
@@ -643,52 +617,36 @@ export default function App() {
                 <AnimatePresence mode="wait">
                   <motion.g
                     key={`${range}-${selectedDate.toISOString()}`}
-                    initial={{ opacity: 0, scale: 0.95, filter: "blur(4px)" }}
-                    animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-                    exit={{ opacity: 0, scale: 1.05, filter: "blur(4px)" }}
-                    transition={{ delay: i * 0.04 + 0.1, duration: 0.4, ease: "easeOut" }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    style={{ mixBlendMode: theme === 'dark' ? 'screen' : 'multiply' }}
                   >
-                    {habit.dots.map((dot, idx) => {
-                      const capacity = range === 'month' ? 31 : range === 'year' ? 365 : 365 * 50;
-                      const fillProgress = idx / capacity;
+                    {Array.from({ length: habit.shellCount }).map((_, idx) => {
+                      // Scaling logic: 10% to 100%
+                      const scaleFactor = 0.1 + (0.9 * ((idx + 1) / habit.shellCount));
                       
-                      const rBase = radius * 0.22;
-                      const rMax = radius * 0.95;
-                      const r = rBase + (Math.pow(fillProgress, 0.7) * (rMax - rBase));
-                      const normalizedY = Math.min(1, Math.max(0, (r - rBase) / (rMax - rBase)));
-                      const currentMaxX = petalWidth * Math.pow(Math.sin(normalizedY * Math.PI), 0.7) * 0.95;
-                      const dx = isNaN(currentMaxX) ? 0 : (dot.x - 0.5) * currentMaxX;
-                      const dy = -r;
-
-                      if (range === 'month') {
-                        return (
-                          <motion.circle
-                            key={dot.id}
-                            cx={dx}
-                            cy={dy}
-                            r={radius * (isHovered ? 0.013 : 0.011)}
-                            fill={habit.color}
-                            initial={{ opacity: 0, scale: 0 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: idx * 0.005, duration: 0.3 }}
-                            style={{ 
-                              filter: isHovered ? `drop-shadow(0 0 10px ${habit.color}aa)` : 'none',
-                              opacity: isOtherHovered ? 0.2 : 1
-                            }}
-                          />
-                        );
-                      }
-
+                      // Using the same d path as the parent but scaled
                       return (
-                        <circle
-                          key={dot.id}
-                          cx={dx}
-                          cy={dy}
-                          r={radius * (isHovered ? 0.013 : 0.011)}
-                          fill={habit.color}
-                          style={{ 
-                            opacity: isOtherHovered ? 0.1 : 0.8,
-                            filter: isHovered ? `drop-shadow(0 0 8px ${habit.color}88)` : 'none',
+                        <motion.path
+                          key={`shell-${idx}`}
+                          d={d}
+                          fill="none"
+                          stroke={habit.color}
+                          strokeWidth={isHovered ? 1.2 : 0.8}
+                          strokeOpacity={isHovered ? 0.6 : 0.3}
+                          initial={{ scale: 0, opacity: 0 }}
+                          animate={{ 
+                            scale: isHovered 
+                              ? [scaleFactor, scaleFactor * 1.05, scaleFactor] 
+                              : scaleFactor,
+                            opacity: 1
+                          }}
+                          transition={{ 
+                            scale: isHovered 
+                              ? { duration: 2, repeat: Infinity, ease: "easeInOut", delay: idx * 0.05 }
+                              : { duration: 0.5, delay: idx * 0.01 },
+                            opacity: { duration: 0.3 }
                           }}
                         />
                       );
@@ -741,7 +699,7 @@ export default function App() {
                   {hoveredHabitData.name}
                 </text>
                 <text y="35" textAnchor="middle" fontSize="10" fill={hoveredHabitData.color} className="font-light tracking-[0.2em] uppercase opacity-90 font-semibold">
-                  {hoveredHabitData.dots.length} {hoveredHabitData.dots.length === 1 ? 'entry' : 'entries'}
+                  {hoveredHabitData.shellCount} {range === 'month' ? 'active days' : range === 'year' ? 'active weeks' : 'active years'}
                 </text>
               </motion.g>
             ) : null}
