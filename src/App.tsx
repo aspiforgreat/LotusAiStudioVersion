@@ -603,8 +603,8 @@ export default function App() {
               return (
                 <radialGradient id={`grad-${habit.id}`} key={habit.id} cx="50%" cy="100%" r={`${gradRadius * 100}%`} fx="50%" fy="100%" gradientUnits="objectBoundingBox">
                   {/* Start after the central circle */}
-                  <stop offset="0%" stopColor="#000" stopOpacity="1" />
-                  <stop offset={`${innerOffset * 100}%`} stopColor="#000" stopOpacity="1" />
+                  <stop offset="0%" stopColor={habit.color} stopOpacity="0" />
+                  <stop offset={`${innerOffset * 100}%`} stopColor={habit.color} stopOpacity="0" />
                   {/* Color area */}
                   <stop offset={`${(innerOffset + 0.02) * 100}%`} stopColor={habit.color} stopOpacity={baseOpacity} />
                   <stop offset="85%" stopColor={habit.color} stopOpacity={midOpacity} />
@@ -772,7 +772,7 @@ export default function App() {
               scale: hoveredHabitData ? 0.8 : 1.1
             }}
             transition={{ duration: 0.8, ease: "easeInOut" }}
-            style={{ filter: 'url(#lightGlow)' }}
+            style={{ filter: 'url(#glow)' }}
           />
 
           {/* Inner HUD Background Circle */}
