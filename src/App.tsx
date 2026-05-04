@@ -9,7 +9,7 @@ import { Calendar, Layers, Hourglass, Info, ChevronLeft, ChevronRight, Upload, S
 import { HABIT_DATA as INITIAL_HABIT_DATA, mapRawData, SAMPLE_DATA } from './data';
 import { TimeRange, Habit, Entry, HabitData } from './types';
 
-const LIFESPAN_YEARS = 50;
+const LIFESPAN_YEARS = 20;
 
 // Dynamic configuration based on theme
 const THEMES = {
@@ -275,11 +275,18 @@ export default function App() {
     }
   }, [habitData]);
 
+  const earliestEntryYear = useMemo(() => {
+    if (habitData.entries.length === 0) return selectedDate.getFullYear();
+    const years = habitData.entries.map(e => new Date(e.date).getFullYear());
+    return Math.min(...years);
+  }, [habitData.entries]);
+
   const aggregatedData = useMemo(() => {
     return habits.map(habit => {
       const habitEntries = habitData.entries.filter(e => Number(e.habitId) === Number(habit.id) && e.value > 0);
       let shellCount = 0;
       let completionRate = 0;
+      let activeMonthIndices: number[] = [];
 
       // Grouping logic for fractal shells
       if (range === 'month') {
@@ -301,15 +308,23 @@ export default function App() {
         completionRate = Math.min(100, (shellCount / 52) * 100);
       }
       else {
-        // Fifty Years - Group by year (Mastery Tiers)
-        const activeYears = new Set(habitEntries.map(e => e.date.split('-')[0]));
-        shellCount = activeYears.size;
-        completionRate = Math.min(100, (shellCount / LIFESPAN_YEARS) * 100);
+        // Twenty Years - Group by month
+        const activeMonths = new Set<number>();
+        habitEntries.forEach(e => {
+          const d = new Date(e.date);
+          const monthIndex = (d.getFullYear() - earliestEntryYear) * 12 + d.getMonth();
+          if (monthIndex >= 0 && monthIndex < 240) {
+            activeMonths.add(monthIndex);
+          }
+        });
+        shellCount = activeMonths.size;
+        activeMonthIndices = Array.from(activeMonths);
+        completionRate = Math.min(100, (shellCount / 240) * 100);
       }
 
-      return { ...habit, shellCount, completionRate };
+      return { ...habit, shellCount, completionRate, activeMonthIndices };
     });
-  }, [range, habits, selectedDate]);
+  }, [range, habits, selectedDate, earliestEntryYear]);
 
   const radius = Math.min(dimensions.width, dimensions.height) * 0.32;
   const centerX = dimensions.width / 2;
@@ -465,7 +480,7 @@ export default function App() {
               </pattern>
             </defs>
             <rect width="100%" height="100%" fill="url(#grid)" />
-            <rect width={`${Math.min(100, (weeksSinceStart / (50 * 52)) * 100)}%`} height="100%" fill="url(#grid-lived)" />
+            <rect width={`${Math.min(100, (weeksSinceStart / (20 * 52)) * 100)}%`} height="100%" fill="url(#grid-lived)" />
           </svg>
         </div>
       </div>
@@ -498,7 +513,7 @@ export default function App() {
           <div className={`flex gap-1 md:gap-2 ${THEMES[theme].headerBg} backdrop-blur-3xl p-1 rounded-full border border-white/5 shadow-2xl`}>
             <RangeButton active={range === 'month'} onClick={() => setRange('month')} label="Month" theme={theme} />
             <RangeButton active={range === 'year'} onClick={() => setRange('year')} label="Year" theme={theme} />
-            <RangeButton active={range === 'fiftyYears'} onClick={() => setRange('fiftyYears')} label="50 Years" theme={theme} />
+            <RangeButton active={range === 'fiftyYears'} onClick={() => setRange('fiftyYears')} label="20 Years" theme={theme} />
           </div>
 
           {range !== 'fiftyYears' && (
@@ -546,13 +561,39 @@ export default function App() {
             const rawRate = data ? data.completionRate / 100 : 0;
             const rate = Math.pow(rawRate, 0.4); 
             
+            const activeMonthIndices = data?.activeMonthIndices || [];
+            const maxIdx = activeMonthIndices.length > 0 ? Math.max(...activeMonthIndices) : -1;
+            
+            // Adjust gradient for 20 Year view
+            if (range === 'fiftyYears') {
+              const innerOffset = CENTRAL_HUD_CONFIG.innerRadius; // 0.18
+              const maxMonthFactor = maxIdx >= 0 ? (maxIdx + 1) / 240 : 0;
+              const gradRadius = innerOffset + maxMonthFactor * (1 - innerOffset);
+              
+              const baseOpacity = (0.15 + (rate * 0.75)) * THEMES[theme].petalOpacity;
+              const midOpacity = (0.05 + (rate * 0.35)) * THEMES[theme].petalOpacity;
+              
+              return (
+                <radialGradient id={`grad-${habit.id}`} key={habit.id} cx="50%" cy="100%" r={`${gradRadius * 100}%`} fx="50%" fy="100%" gradientUnits="objectBoundingBox">
+                  {/* Start after the central circle */}
+                  <stop offset="0%" stopColor="#000" stopOpacity="1" />
+                  <stop offset={`${innerOffset * 100}%`} stopColor="#000" stopOpacity="1" />
+                  {/* Color area */}
+                  <stop offset={`${(innerOffset + 0.02) * 100}%`} stopColor={habit.color} stopOpacity={baseOpacity} />
+                  <stop offset="85%" stopColor={habit.color} stopOpacity={midOpacity} />
+                  {/* Fade out at the last active month */}
+                  <stop offset="100%" stopColor={habit.color} stopOpacity="0.02" />
+                </radialGradient>
+              );
+            }
+
             const baseOpacity = (0.15 + (rate * 0.75)) * THEMES[theme].petalOpacity;
             const midOpacity = (0.05 + (rate * 0.35)) * THEMES[theme].petalOpacity;
             return (
-              <radialGradient id={`grad-${habit.id}`} key={habit.id} cx="50%" cy="100%" r="100%" fx="50%" fy="100%">
+              <radialGradient id={`grad-${habit.id}`} key={habit.id} cx="50%" cy="100%" r="100%" fx="50%" fy="100%" gradientUnits="objectBoundingBox">
                 <stop offset="0%" stopColor={habit.color} stopOpacity={baseOpacity} />
-                <stop offset="70%" stopColor={habit.color} stopOpacity={midOpacity} />
-                <stop offset="100%" stopColor={habit.color} stopOpacity="0.01" />
+                <stop offset="85%" stopColor={habit.color} stopOpacity={midOpacity} />
+                <stop offset="100%" stopColor={habit.color} stopOpacity="0.05" />
               </radialGradient>
             );
           })}
@@ -588,6 +629,11 @@ export default function App() {
                 transform={`rotate(${(midAngle * 180) / Math.PI + 90})`}
                 style={{ opacity: isOtherHovered ? 0.1 : 1, transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }}
               >
+                <defs>
+                  <clipPath id={`clip-${habit.id}`}>
+                    <path d={d} />
+                  </clipPath>
+                </defs>
                 <motion.path
                   key={`petal-${range}-${selectedDate.toISOString()}`}
                   d={d}
@@ -621,36 +667,68 @@ export default function App() {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     style={{ mixBlendMode: theme === 'dark' ? 'screen' : 'multiply' }}
+                    clipPath={`url(#clip-${habit.id})`}
                   >
-                    {Array.from({ length: habit.shellCount }).map((_, idx) => {
-                      // Scaling logic: 10% to 100%
-                      const scaleFactor = 0.1 + (0.9 * ((idx + 1) / habit.shellCount));
-                      
-                      // Using the same d path as the parent but scaled
-                      return (
-                        <motion.path
-                          key={`shell-${idx}`}
-                          d={d}
-                          fill="none"
-                          stroke={habit.color}
-                          strokeWidth={isHovered ? 1.2 : 0.8}
-                          strokeOpacity={isHovered ? 0.6 : 0.3}
-                          initial={{ scale: 0, opacity: 0 }}
-                          animate={{ 
-                            scale: isHovered 
-                              ? [scaleFactor, scaleFactor * 1.05, scaleFactor] 
-                              : scaleFactor,
-                            opacity: 1
-                          }}
-                          transition={{ 
-                            scale: isHovered 
-                              ? { duration: 2, repeat: Infinity, ease: "easeInOut", delay: idx * 0.05 }
-                              : { duration: 0.5, delay: idx * 0.01 },
-                            opacity: { duration: 0.3 }
-                          }}
-                        />
-                      );
-                    })}
+                    {range === 'fiftyYears' ? (
+                      habit.activeMonthIndices?.map((monthIdx) => {
+                        const innerR = radius * CENTRAL_HUD_CONFIG.innerRadius;
+                        const availableR = radius - innerR;
+                        const r = innerR + ((monthIdx + 1) / 240) * availableR;
+                        return (
+                          <motion.circle
+                            key={`shell-${monthIdx}`}
+                            cx="0"
+                            cy="0"
+                            r={r}
+                            fill="none"
+                            stroke={habit.color}
+                            strokeWidth={isHovered ? 1.5 : 1}
+                            strokeOpacity={isHovered ? 0.8 : 0.4}
+                            initial={{ r: innerR, opacity: 0 }}
+                            animate={{ 
+                              r: isHovered ? [r, r + 2, r] : r,
+                              opacity: 1
+                            }}
+                            transition={{ 
+                              r: isHovered 
+                                ? { duration: 2, repeat: Infinity, ease: "easeInOut", delay: (monthIdx % 12) * 0.05 }
+                                : { duration: 0.5, delay: (monthIdx % 240) * 0.002 },
+                              opacity: { duration: 0.3 }
+                            }}
+                          />
+                        );
+                      })
+                    ) : (
+                      Array.from({ length: habit.shellCount }).map((_, idx) => {
+                        // Scaling logic: 10% to 100%
+                        const scaleFactor = 0.1 + (0.9 * ((idx + 1) / habit.shellCount));
+                        
+                        // Using the same d path as the parent but scaled
+                        return (
+                          <motion.path
+                            key={`shell-${idx}`}
+                            d={d}
+                            fill="none"
+                            stroke={habit.color}
+                            strokeWidth={isHovered ? 1.2 : 0.8}
+                            strokeOpacity={isHovered ? 0.6 : 0.3}
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ 
+                              scale: isHovered 
+                                ? [scaleFactor, scaleFactor * 1.05, scaleFactor] 
+                                : scaleFactor,
+                              opacity: 1
+                            }}
+                            transition={{ 
+                              scale: isHovered 
+                                ? { duration: 2, repeat: Infinity, ease: "easeInOut", delay: idx * 0.05 }
+                                : { duration: 0.5, delay: idx * 0.01 },
+                              opacity: { duration: 0.3 }
+                            }}
+                          />
+                        );
+                      })
+                    )}
                   </motion.g>
                 </AnimatePresence>
               </g>
@@ -699,7 +777,7 @@ export default function App() {
                   {hoveredHabitData.name}
                 </text>
                 <text y="35" textAnchor="middle" fontSize="10" fill={hoveredHabitData.color} className="font-light tracking-[0.2em] uppercase opacity-90 font-semibold">
-                  {hoveredHabitData.shellCount} {range === 'month' ? 'active days' : range === 'year' ? 'active weeks' : 'active years'}
+                  {hoveredHabitData.shellCount} {range === 'month' ? 'active days' : range === 'year' ? 'active weeks' : 'active months'}
                 </text>
               </motion.g>
             ) : null}
