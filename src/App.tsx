@@ -163,6 +163,7 @@ export default function App() {
   const [habitData, setHabitData] = useState<HabitData>(INITIAL_HABIT_DATA);
   const [isLoading, setIsLoading] = useState(false);
   const [range, setRange] = useState<TimeRange>('month');
+  const [lifespanYears, setLifespanYears] = useState<number>(20);
   const [hoveredHabit, setHoveredHabit] = useState<number | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [selectedDate, setSelectedDate] = useState(new Date('2026-05-03'));
@@ -310,21 +311,22 @@ export default function App() {
       else {
         // Twenty Years - Group by month
         const activeMonths = new Set<number>();
+        const totalMonths = lifespanYears * 12;
         habitEntries.forEach(e => {
           const d = new Date(e.date);
           const monthIndex = (d.getFullYear() - earliestEntryYear) * 12 + d.getMonth();
-          if (monthIndex >= 0 && monthIndex < 240) {
+          if (monthIndex >= 0 && monthIndex < totalMonths) {
             activeMonths.add(monthIndex);
           }
         });
         shellCount = activeMonths.size;
         activeMonthIndices = Array.from(activeMonths);
-        completionRate = Math.min(100, (shellCount / 240) * 100);
+        completionRate = Math.min(100, (shellCount / totalMonths) * 100);
       }
 
       return { ...habit, shellCount, completionRate, activeMonthIndices };
     });
-  }, [range, habits, selectedDate, earliestEntryYear]);
+  }, [range, habits, selectedDate, earliestEntryYear, lifespanYears]);
 
   const radius = Math.min(dimensions.width, dimensions.height) * 0.32;
   const centerX = dimensions.width / 2;
@@ -480,7 +482,7 @@ export default function App() {
               </pattern>
             </defs>
             <rect width="100%" height="100%" fill="url(#grid)" />
-            <rect width={`${Math.min(100, (weeksSinceStart / (20 * 52)) * 100)}%`} height="100%" fill="url(#grid-lived)" />
+            <rect width={`${Math.min(100, (weeksSinceStart / (lifespanYears * 52)) * 100)}%`} height="100%" fill="url(#grid-lived)" />
           </svg>
         </div>
       </div>
@@ -513,8 +515,32 @@ export default function App() {
           <div className={`flex gap-1 md:gap-2 ${THEMES[theme].headerBg} backdrop-blur-3xl p-1 rounded-full border border-white/5 shadow-2xl`}>
             <RangeButton active={range === 'month'} onClick={() => setRange('month')} label="Month" theme={theme} />
             <RangeButton active={range === 'year'} onClick={() => setRange('year')} label="Year" theme={theme} />
-            <RangeButton active={range === 'fiftyYears'} onClick={() => setRange('fiftyYears')} label="20 Years" theme={theme} />
+            <RangeButton active={range === 'fiftyYears'} onClick={() => setRange('fiftyYears')} label="Lifespan" theme={theme} />
           </div>
+
+          {range === 'fiftyYears' && (
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className={`flex items-center gap-4 ${THEMES[theme].headerBg} backdrop-blur-3xl px-6 py-2 rounded-full border border-white/5 shadow-xl transition-all duration-500`}
+            >
+              <div className="flex flex-col items-center">
+                <span className={`text-[8px] uppercase tracking-[0.3em] mb-1 font-semibold ${theme === 'dark' ? 'text-emerald-400/60' : 'text-emerald-600/60'}`}>Horizon</span>
+                <div className="flex items-center gap-3">
+                  <span className={`text-[10px] font-medium w-4 text-center ${THEMES[theme].textMuted}`}>2y</span>
+                  <input 
+                    type="range" 
+                    min="2" 
+                    max="50" 
+                    value={lifespanYears}
+                    onChange={(e) => setLifespanYears(parseInt(e.target.value))}
+                    className="w-32 md:w-48 h-1 bg-black/20 rounded-lg appearance-none cursor-pointer accent-emerald-500 hover:accent-emerald-400 transition-all"
+                  />
+                  <span className={`text-xs font-semibold w-8 text-center ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{lifespanYears}y</span>
+                </div>
+              </div>
+            </motion.div>
+          )}
 
           {range !== 'fiftyYears' && (
             <div className={`flex items-center gap-4 md:gap-6 text-[9px] md:text-[11px] tracking-[0.2em] md:tracking-[0.3em] font-light transition-colors duration-500 uppercase ${THEMES[theme].textMuted}`}>
@@ -563,11 +589,12 @@ export default function App() {
             
             const activeMonthIndices = data?.activeMonthIndices || [];
             const maxIdx = activeMonthIndices.length > 0 ? Math.max(...activeMonthIndices) : -1;
+            const totalMonths = lifespanYears * 12;
             
             // Adjust gradient for 20 Year view
             if (range === 'fiftyYears') {
               const innerOffset = CENTRAL_HUD_CONFIG.innerRadius; // 0.18
-              const maxMonthFactor = maxIdx >= 0 ? (maxIdx + 1) / 240 : 0;
+              const maxMonthFactor = maxIdx >= 0 ? (maxIdx + 1) / totalMonths : 0;
               const gradRadius = innerOffset + maxMonthFactor * (1 - innerOffset);
               
               const baseOpacity = (0.15 + (rate * 0.75)) * THEMES[theme].petalOpacity;
@@ -671,9 +698,10 @@ export default function App() {
                   >
                     {range === 'fiftyYears' ? (
                       habit.activeMonthIndices?.map((monthIdx) => {
+                        const totalMonths = lifespanYears * 12;
                         const innerR = radius * CENTRAL_HUD_CONFIG.innerRadius;
                         const availableR = radius - innerR;
-                        const r = innerR + ((monthIdx + 1) / 240) * availableR;
+                        const r = innerR + ((monthIdx + 1) / totalMonths) * availableR;
                         return (
                           <motion.circle
                             key={`shell-${monthIdx}`}
@@ -692,7 +720,7 @@ export default function App() {
                             transition={{ 
                               r: isHovered 
                                 ? { duration: 2, repeat: Infinity, ease: "easeInOut", delay: (monthIdx % 12) * 0.05 }
-                                : { duration: 0.5, delay: (monthIdx % 240) * 0.002 },
+                                : { duration: 0.5, delay: (monthIdx % totalMonths) * 0.002 },
                               opacity: { duration: 0.3 }
                             }}
                           />
