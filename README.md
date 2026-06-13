@@ -1,3 +1,4 @@
+<img width="2025" height="1775" alt="Screenshot 2026-06-13 at 16 00 24" src="https://github.com/user-attachments/assets/c7961b81-5d41-4d0c-8da5-5238a8014c2c" />
 # 🪷 Lotus Habit Visualizer
 
 An elegant, highly interactive, and visually stunning habit tracking system. It models your habits as petals of an organic, glowing geometric lotus flower, using sacred geometry and concentric shell divisions to represent personal progress over customizable lifespans.
